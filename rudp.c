@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <time.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/time.h>
 
 #include "event.h"
 #include "rudp.h"
@@ -63,8 +66,8 @@ struct session {
 struct rudp_socket_list {
   rudp_socket_t rsock;
   bool_t close_requested;
-  int (*recv_handler)(rudp_socket_t, struct sockaddr_in *, char *, int);
-  int (*handler)(rudp_socket_t, rudp_event_t, struct sockaddr_in *);
+  int (*recv_handler)(rudp_socket_t, struct zts_sockaddr_in6 *, char *, int);
+  int (*handler)(rudp_socket_t, rudp_event_t, struct zts_sockaddr_in6 *);
   struct session *sessions_list_head;
   struct rudp_socket_list *next;
 };
@@ -73,7 +76,7 @@ struct rudp_socket_list {
 struct timeoutargs {
   rudp_socket_t fd;
   struct rudp_packet *packet;
-  struct sockaddr_in *recipient;
+  struct zts_sockaddr_in6 *recipient;
 };
 
 /* Prototypes */
@@ -217,7 +220,7 @@ rudp_socket_t rudp_socket(int port) {
   zts_inet_pton(ZTS_AF_INET6, "::", &address.sin6_addr);
   address.sin6_port = zts_htons(port);
 
-  if(zts_bind(sockfd, (struct sockaddr *) &address, sizeof(address)) < 0) {
+  if(zts_bind(sockfd, (struct zts_sockaddr *) &address, sizeof(address)) < 0) {
     perror("bind");
     zts_close(sockfd);
     return NULL;
@@ -262,7 +265,7 @@ rudp_socket_t rudp_socket(int port) {
 int receive_callback(int file, void *arg) {
   char buf[sizeof(struct rudp_packet)];
   struct zts_sockaddr_in6 sender;
-  size_t sender_length = sizeof(struct zts_sockaddr_in6);
+  zts_socklen_t sender_length = sizeof(struct zts_sockaddr_in6);
   zts_recvfrom(file, &buf, sizeof(struct rudp_packet), 0, (struct zts_sockaddr *)&sender, &sender_length);
 
   struct rudp_packet *received_packet = malloc(sizeof(struct rudp_packet));
@@ -964,7 +967,7 @@ int send_packet(bool_t is_ack, rudp_socket_t rsocket, struct rudp_packet *p, str
     memcpy(timeargs->recipient, recipient, sizeof(struct zts_sockaddr_in6));  
   
     struct zts_timeval currentTime;
-    gettimeofday(&currentTime, NULL);
+    gettimeofday((struct timeval *)&currentTime, NULL);
     struct zts_timeval delay;
     delay.tv_sec = RUDP_TIMEOUT/1000;
     delay.tv_usec= 0;

@@ -1,6 +1,10 @@
 #ifndef RUDP_PROTO_H
 #define	RUDP_PROTO_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
+
 #define RUDP_VERSION	1	/* Protocol version */
 #define RUDP_MAXPKTSIZE 1000	/* Number of data bytes that can sent in a packet, RUDP header not included */
 #define RUDP_MAXRETRANS 5	/* Max. number of retransmissions */
@@ -31,5 +35,9 @@ struct rudp_hdr {
   u_int16_t type;
   u_int32_t seqno;
 }__attribute__ ((packed));
+
+#ifdef __cplusplus
+} // extern "C"
+#endif // __cplusplus
 
 #endif /* RUDP_PROTO_H */

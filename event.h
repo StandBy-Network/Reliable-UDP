@@ -32,6 +32,9 @@ GNU General Public License for more details.
 * error, and the program is terminated.
 */
 
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
 
 /*
 * Prototypes
@@ -50,5 +53,9 @@ int event_fd_delete(int (*callback)(int, void*), void *callback_arg);
 int event_fd(int fd, int (*callback)(int, void*), void *callback_arg, 
              char *idstr);
 int eventloop();
+
+#ifdef __cplusplus
+} // extern "C"
+#endif // __cplusplus
 
 #endif /* EVENT_H */

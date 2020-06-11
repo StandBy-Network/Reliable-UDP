@@ -3,6 +3,10 @@
 
 #include <ZeroTierSockets.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
+
 #define RUDP_MAXPKTSIZE 1000    /* Number of data bytes that can sent in a
                                  * packet, RUDP header not included */
 
@@ -57,4 +61,8 @@ int rudp_event_handler(rudp_socket_t rsocket,
                int (*handler)(rudp_socket_t, 
                       rudp_event_t, 
                       struct zts_sockaddr_in6 *));
+
+#ifdef __cplusplus
+} // extern "C"
+#endif // __cplusplus
 #endif /* RUDP_API_H */

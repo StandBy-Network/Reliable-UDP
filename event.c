@@ -33,6 +33,9 @@ GNU General Public License for more details.
 #endif
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/time.h>
 
 #include "event.h"
 
@@ -166,7 +169,7 @@ eventloop() {
         ZTS_FD_SET(e->e_fd, &fdset);
 
     if (ee_timers) {
-      gettimeofday(&t0, NULL);
+      gettimeofday((struct timeval *)&t0, NULL);
       timersub(&ee_timers->e_time, &t0, &t);
       if (t.tv_sec < 0)
         n = 0;
@@ -201,7 +204,7 @@ eventloop() {
   e = ee;
     while (e) {
       e1 = e->e_next;
-      if (e->e_type == EVENT_FD && FD_ISSET(e->e_fd, &fdset)) {
+      if (e->e_type == EVENT_FD && ZTS_FD_ISSET(e->e_fd, &fdset)) {
         #ifdef DEBUG
           fprintf(stderr, "eventloop: socket rcv: %s[fd: %d arg: %x]\n",
           e->e_string, e->e_fd, (int)e->e_arg);
