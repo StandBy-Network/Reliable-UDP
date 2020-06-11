@@ -1,16 +1,5 @@
-#include <unistd.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
-#include <netdb.h>
-#include <fcntl.h>
 #include <sys/types.h>
-#include <sys/time.h>
-#include <sys/file.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 #include <time.h>
 
 #include "event.h"
@@ -66,7 +55,7 @@ struct receiver_session {
 struct session {
   struct sender_session *sender;
   struct receiver_session *receiver;
-  struct sockaddr_in address;
+  struct zts_sockaddr_in6 address;
   struct session *next;
 };
 
@@ -88,20 +77,20 @@ struct timeoutargs {
 };
 
 /* Prototypes */
-void create_sender_session(struct rudp_socket_list *socket, u_int32_t seqno, struct sockaddr_in *to, struct data **data_queue);
-void create_receiver_session(struct rudp_socket_list *socket, u_int32_t seqno, struct sockaddr_in *addr);
+void create_sender_session(struct rudp_socket_list *socket, u_int32_t seqno, struct zts_sockaddr_in6 *to, struct data **data_queue);
+void create_receiver_session(struct rudp_socket_list *socket, u_int32_t seqno, struct zts_sockaddr_in6 *addr);
 struct rudp_packet *create_rudp_packet(u_int16_t type, u_int32_t seqno, int len, char *payload);
-int compare_sockaddr(struct sockaddr_in *s1, struct sockaddr_in *s2);
+int compare_sockaddr(struct zts_sockaddr_in6 *s1, struct zts_sockaddr_in6 *s2);
 int receive_callback(int file, void *arg);
 int timeout_callback(int retry_attempts, void *args);
-int send_packet(bool_t is_ack, rudp_socket_t rsocket, struct rudp_packet *p, struct sockaddr_in *recipient);
+int send_packet(bool_t is_ack, rudp_socket_t rsocket, struct rudp_packet *p, struct zts_sockaddr_in6 *recipient);
 
 /* Global variables */
 bool_t rng_seeded = false;
 struct rudp_socket_list *socket_list_head = NULL;
 
 /* Creates a new sender session and appends it to the socket's session list */
-void create_sender_session(struct rudp_socket_list *socket, u_int32_t seqno, struct sockaddr_in *to, struct data **data_queue) {
+void create_sender_session(struct rudp_socket_list *socket, u_int32_t seqno, struct zts_sockaddr_in6 *to, struct data **data_queue) {
   struct session *new_session = malloc(sizeof(struct session));
   if(new_session == NULL) {
     fprintf(stderr, "create_sender_session: Error allocating memory\n");
@@ -145,7 +134,7 @@ void create_sender_session(struct rudp_socket_list *socket, u_int32_t seqno, str
 }
 
 /* Creates a new receiver session and appends it to the socket's session list */
-void create_receiver_session(struct rudp_socket_list *socket, u_int32_t seqno, struct sockaddr_in *addr) {
+void create_receiver_session(struct rudp_socket_list *socket, u_int32_t seqno, struct zts_sockaddr_in6 *addr) {
   struct session *new_session = malloc(sizeof(struct session));
   if(new_session == NULL) {
     fprintf(stderr, "create_receiver_session: Error allocating memory\n");
@@ -199,13 +188,13 @@ struct rudp_packet *create_rudp_packet(u_int16_t type, u_int32_t seqno, int len,
 }
 
 /* Returns 1 if the two sockaddr_in structs are equal and 0 if not */
-int compare_sockaddr(struct sockaddr_in *s1, struct sockaddr_in *s2) {
-  char sender[16];
-  char recipient[16];
-  strcpy(sender, inet_ntoa(s1->sin_addr));
-  strcpy(recipient, inet_ntoa(s2->sin_addr));
+int compare_sockaddr(struct zts_sockaddr_in6 *s1, struct zts_sockaddr_in6 *s2) {
+  char sender[ZTS_INET6_ADDRSTRLEN];
+  char recipient[ZTS_INET6_ADDRSTRLEN];
+  zts_inet_ntop(ZTS_AF_INET6, &s1->sin6_addr, sender, ZTS_INET6_ADDRSTRLEN);
+  zts_inet_ntop(ZTS_AF_INET6, &s2->sin6_addr, recipient, ZTS_INET6_ADDRSTRLEN);
   
-  return ((s1->sin_family == s2->sin_family) && (strcmp(sender, recipient) == 0) && (s1->sin_port == s2->sin_port));
+  return ((s1->sin6_family == s2->sin6_family) && (strcmp(sender, recipient) == 0) && (s1->sin6_port == s2->sin6_port));
 }
 
 /* Creates and returns a RUDP socket */
@@ -215,21 +204,22 @@ rudp_socket_t rudp_socket(int port) {
     rng_seeded = true;
   }
   int sockfd;
-  struct sockaddr_in address;
+  struct zts_sockaddr_in6 address;
 
-  sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+  sockfd = zts_socket(ZTS_AF_INET, ZTS_SOCK_DGRAM, 0);
   if(sockfd < 0) {
     perror("socket");
     return (rudp_socket_t)NULL;
   }
 
   memset(&address, 0, sizeof(address));
-  address.sin_family = AF_INET;
-  address.sin_addr.s_addr = htonl(INADDR_ANY);
-  address.sin_port = htons(port);
+  address.sin6_family = ZTS_AF_INET6;
+  zts_inet_pton(ZTS_AF_INET6, "::", &address.sin6_addr);
+  address.sin6_port = zts_htons(port);
 
-  if( bind(sockfd, (struct sockaddr *) &address, sizeof(address)) < 0) {
+  if(zts_bind(sockfd, (struct sockaddr *) &address, sizeof(address)) < 0) {
     perror("bind");
+    zts_close(sockfd);
     return NULL;
   }
 
@@ -239,6 +229,7 @@ rudp_socket_t rudp_socket(int port) {
   struct rudp_socket_list *new_socket = malloc(sizeof(struct rudp_socket_list));
   if(new_socket == NULL) {
     fprintf(stderr, "rudp_socket: Error allocating memory for socket list\n");
+    zts_close(sockfd);
     return (rudp_socket_t) -1;
   }
   new_socket->rsock = socket;
@@ -270,9 +261,9 @@ rudp_socket_t rudp_socket(int port) {
 /* Callback function executed when something is received on fd */
 int receive_callback(int file, void *arg) {
   char buf[sizeof(struct rudp_packet)];
-  struct sockaddr_in sender;
-  size_t sender_length = sizeof(struct sockaddr_in);
-  recvfrom(file, &buf, sizeof(struct rudp_packet), 0, (struct sockaddr *)&sender, &sender_length);
+  struct zts_sockaddr_in6 sender;
+  size_t sender_length = sizeof(struct zts_sockaddr_in6);
+  zts_recvfrom(file, &buf, sizeof(struct rudp_packet), 0, (struct zts_sockaddr *)&sender, &sender_length);
 
   struct rudp_packet *received_packet = malloc(sizeof(struct rudp_packet));
   if(received_packet == NULL) {
@@ -295,8 +286,10 @@ int receive_callback(int file, void *arg) {
   else
     strcpy(type, "BAD");
 
+  char addr_buf[ZTS_INET6_ADDRSTRLEN];
+  zts_inet_ntop(ZTS_AF_INET6, &sender.sin6_addr, addr_buf, ZTS_INET6_ADDRSTRLEN);
   printf("Received %s packet from %s:%d seq number=%u on socket=%d\n",type, 
-       inet_ntoa(sender.sin_addr), ntohs(sender.sin_port),rudpheader.seqno,file);
+       addr_buf, zts_ntohs(sender.sin6_port),rudpheader.seqno,file);
 
   /* Locate the correct socket in the socket list */
   if(socket_list_head == NULL) {
@@ -662,7 +655,7 @@ int rudp_close(rudp_socket_t rsocket) {
 
 /* Register receive callback function */ 
 int rudp_recvfrom_handler(rudp_socket_t rsocket, int (*handler)(rudp_socket_t, 
-            struct sockaddr_in *, char *, int)) {
+            struct zts_sockaddr_in6 *, char *, int)) {
 
   if(handler == NULL) {
     fprintf(stderr, "rudp_recvfrom_handler failed: handler callback is null\n");
@@ -687,7 +680,7 @@ int rudp_recvfrom_handler(rudp_socket_t rsocket, int (*handler)(rudp_socket_t,
 /* Register event handler callback function with a RUDP socket */
 int rudp_event_handler(rudp_socket_t rsocket, 
          int (*handler)(rudp_socket_t, rudp_event_t, 
-            struct sockaddr_in *)) {
+            struct zts_sockaddr_in6 *)) {
 
   if(handler == NULL) {
     fprintf(stderr, "rudp_event_handler failed: handler callback is null\n");
@@ -713,7 +706,7 @@ int rudp_event_handler(rudp_socket_t rsocket,
 
 
 /* Sends a block of data to the receiver. Returns 0 on success, -1 on error */
-int rudp_sendto(rudp_socket_t rsocket, void* data, int len, struct sockaddr_in* to) {
+int rudp_sendto(rudp_socket_t rsocket, void* data, int len, struct zts_sockaddr_in6* to) {
 
   if(len < 0 || len > RUDP_MAXPKTSIZE) {
     fprintf(stderr, "rudp_sendto Error: attempting to send with invalid max packet size\n");
@@ -920,7 +913,7 @@ int timeout_callback(int fd, void *args) {
 }
 
 /* Transmit a packet via UDP */
-int send_packet(bool_t is_ack, rudp_socket_t rsocket, struct rudp_packet *p, struct sockaddr_in *recipient) {
+int send_packet(bool_t is_ack, rudp_socket_t rsocket, struct rudp_packet *p, struct zts_sockaddr_in6 *recipient) {
   char type[5];
   short t=p->header.type;
   if(t == 1)
@@ -934,14 +927,16 @@ int send_packet(bool_t is_ack, rudp_socket_t rsocket, struct rudp_packet *p, str
   else
     strcpy(type, "BAD");
 
+  char addr_buf[ZTS_INET6_ADDRSTRLEN];
+  zts_inet_ntop(ZTS_AF_INET6, &recipient->sin6_addr, addr_buf, ZTS_INET6_ADDRSTRLEN);
   printf("Sending %s packet to %s:%d seq number=%u on socket=%d\n",type, 
-       inet_ntoa(recipient->sin_addr), ntohs(recipient->sin_port), p->header.seqno, (int)rsocket);
+       addr_buf, zts_ntohs(recipient->sin6_port), p->header.seqno, (int)rsocket);
 
   if (DROP != 0 && rand() % DROP == 1) {
       printf("Dropped\n");
   }
   else {
-    if (sendto((int)rsocket, p, sizeof(struct rudp_packet), 0, (struct sockaddr*)recipient, sizeof(struct sockaddr_in)) < 0) {
+    if (zts_sendto((int)rsocket, p, sizeof(struct rudp_packet), 0, (struct zts_sockaddr*)recipient, sizeof(struct zts_sockaddr_in6)) < 0) {
       fprintf(stderr, "rudp_sendto: sendto failed\n");
       return -1;
     }
@@ -959,21 +954,21 @@ int send_packet(bool_t is_ack, rudp_socket_t rsocket, struct rudp_packet *p, str
       fprintf(stderr, "send_packet: Error allocating timeout args packet\n");
       return -1;
     }
-    timeargs->recipient = malloc(sizeof(struct sockaddr_in));
+    timeargs->recipient = malloc(sizeof(struct zts_sockaddr_in6));
     if(timeargs->packet == NULL) {
       fprintf(stderr, "send_packet: Error allocating timeout args recipient\n");
       return -1;
     }
     timeargs->fd = rsocket;
     memcpy(timeargs->packet, p, sizeof(struct rudp_packet));
-    memcpy(timeargs->recipient, recipient, sizeof(struct sockaddr_in));  
+    memcpy(timeargs->recipient, recipient, sizeof(struct zts_sockaddr_in6));  
   
-    struct timeval currentTime;
+    struct zts_timeval currentTime;
     gettimeofday(&currentTime, NULL);
-    struct timeval delay;
+    struct zts_timeval delay;
     delay.tv_sec = RUDP_TIMEOUT/1000;
     delay.tv_usec= 0;
-    struct timeval timeout_time;
+    struct zts_timeval timeout_time;
     timeradd(&currentTime, &delay, &timeout_time);
 
     struct rudp_socket_list *curr_socket = socket_list_head;

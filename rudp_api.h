@@ -1,6 +1,8 @@
 #ifndef RUDP_API_H
 #define RUDP_API_H
 
+#include <ZeroTierSockets.h>
+
 #define RUDP_MAXPKTSIZE 1000    /* Number of data bytes that can sent in a
                                  * packet, RUDP header not included */
 
@@ -37,7 +39,7 @@ int rudp_close(rudp_socket_t rsocket);
  * Send a datagram 
  */
 int rudp_sendto(rudp_socket_t rsocket, void* data, int len, 
-        struct sockaddr_in* to);
+        struct zts_sockaddr_in6* to);
 
 /* 
  * Register callback function for packet receiption 
@@ -46,7 +48,7 @@ int rudp_sendto(rudp_socket_t rsocket, void* data, int len,
  */
 int rudp_recvfrom_handler(rudp_socket_t rsocket, 
               int (*handler)(rudp_socket_t, 
-                     struct sockaddr_in *, 
+                     struct zts_sockaddr_in6 *, 
                      char *, int));
 /*
  * Register callback handler for event notifications
@@ -54,5 +56,5 @@ int rudp_recvfrom_handler(rudp_socket_t rsocket,
 int rudp_event_handler(rudp_socket_t rsocket, 
                int (*handler)(rudp_socket_t, 
                       rudp_event_t, 
-                      struct sockaddr_in *));
+                      struct zts_sockaddr_in6 *));
 #endif /* RUDP_API_H */

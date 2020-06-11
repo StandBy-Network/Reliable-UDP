@@ -1,12 +1,14 @@
 #ifndef EVENT_H
 #define EVENT_H
 
+#include <ZeroTierSockets.h>
+
 /* event.h -*-mode: C; c-file-style:"cc-mode";-*- */
 /*----------------------------------------------------------------------------
 File: event.h
 Description: RUDP event management: Input event handling, registering file 
 descriptors, timers and event loop.
-Authors: Olof Hagsand and Peter Sjödin
+Authors: Olof Hagsand and Peter Sjï¿½din
 RUDP event management is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or
@@ -34,7 +36,7 @@ GNU General Public License for more details.
 /*
 * Prototypes
 */
-int event_timeout(struct timeval timer,
+int event_timeout(struct zts_timeval timer,
 int (*callback)(int, void*), void *callback_arg, char *idstr);
 
 int
