@@ -209,21 +209,23 @@ rudp_socket_t rudp_socket(int port) {
   int sockfd;
   struct zts_sockaddr_in6 address;
 
-  sockfd = zts_socket(ZTS_AF_INET, ZTS_SOCK_DGRAM, 0);
+  sockfd = zts_socket(ZTS_AF_INET6, ZTS_SOCK_DGRAM, 0);
   if(sockfd < 0) {
     perror("socket");
-    return (rudp_socket_t)NULL;
+    return (rudp_socket_t)-1;
   }
 
-  memset(&address, 0, sizeof(address));
+  //memset(&address, 0, sizeof(address));
   address.sin6_family = ZTS_AF_INET6;
   zts_inet_pton(ZTS_AF_INET6, "::", &address.sin6_addr);
   address.sin6_port = zts_htons(port);
 
-  if(zts_bind(sockfd, (struct zts_sockaddr *) &address, sizeof(address)) < 0) {
+  int err;
+  if((err = zts_bind(sockfd, (struct zts_sockaddr *) &address, sizeof(address))) < 0) {
     perror("bind");
+    fprintf(stderr, "Couldn't bind to \"any_address\": err: %d zts_errno: %d\n", err, zts_errno);
     zts_close(sockfd);
-    return NULL;
+    return (rudp_socket_t)-1;
   }
 
   rudp_socket_t socket = (rudp_socket_t)sockfd;
