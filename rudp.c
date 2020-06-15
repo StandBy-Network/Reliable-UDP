@@ -215,12 +215,20 @@ rudp_socket_t rudp_socket(int port) {
     return (rudp_socket_t)-1;
   }
 
+  int err;
+  if((err = zts_fcntl(sockfd, ZTS_F_SETFL, ZTS_O_NONBLOCK)) < 0)
+  {
+    perror("fcntl");
+    fprintf(stderr, "Couldn't set socket to be non-blocking: err: %d zts_errno: %d\n", err, zts_errno);
+    zts_close(sockfd);
+    return (rudp_socket_t)-1;
+  }
+
   //memset(&address, 0, sizeof(address));
   address.sin6_family = ZTS_AF_INET6;
   zts_inet_pton(ZTS_AF_INET6, "::", &address.sin6_addr);
   address.sin6_port = zts_htons(port);
 
-  int err;
   if((err = zts_bind(sockfd, (struct zts_sockaddr *) &address, sizeof(address))) < 0) {
     perror("bind");
     fprintf(stderr, "Couldn't bind to \"any_address\": err: %d zts_errno: %d\n", err, zts_errno);
